@@ -93,6 +93,27 @@ with open(sys.argv[1], 'w') as f: f.write(content)
 " "$ZHA_DIR/radio_manager.py"
 echo "  Done."
 
+# Step 4: Fix PEP 758 syntax for Python 3.13 compatibility
+# HA core dev targets Python 3.14+ which allows "except A, B:" (PEP 758),
+# but HA stable Docker still uses Python 3.13 which requires parentheses.
+echo "Step 4: Fixing except syntax for Python 3.13 compatibility..."
+python3 -c "
+import re, sys, glob
+count = 0
+for path in glob.glob(sys.argv[1] + '/**/*.py', recursive=True):
+    with open(path) as f: content = f.read()
+    # Match 'except A, B[, C...]:' (without 'as') and add parentheses
+    new_content = re.sub(
+        r'except (\w[\w.]*(?:\s*,\s*\w[\w.]*)+):',
+        lambda m: 'except (' + m.group(1) + '):',
+        content,
+    )
+    if new_content != content:
+        with open(path, 'w') as f: f.write(new_content)
+        count += 1
+print(f'  Fixed {count} file(s).')
+" "$ZHA_DIR"
+
 echo ""
 echo "Update complete! Based on HA core $CORE_COMMIT ($HA_VERSION)."
 echo "Version set to: ${HA_VERSION}-blz"
@@ -100,6 +121,7 @@ echo ""
 echo "Files patched:"
 echo "  - zha/manifest.json  (name, loggers, requirements, version)"
 echo "  - zha/radio_manager.py  (RadioType.blz in RECOMMENDED_RADIOS)"
+echo "  - *.py  (PEP 758 except syntax fixed for Python 3.13 compat)"
 echo ""
 echo "Next steps:"
 echo "  1. Verify bouffalolab/zha feat/blz branch is compatible with ZHA $(grep -oP 'zha==\K[^"]+' "$CORE_ZHA/manifest.json" 2>/dev/null || echo '(check version)')"

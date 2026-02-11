@@ -1,0 +1,107 @@
+#!/usr/bin/env bash
+#
+# Update the custom ZHA BLZ component from a local HA core checkout.
+#
+# Usage:
+#   ./update_from_core.sh /path/to/ha-core
+#
+# What it does:
+#   1. Copies all ZHA files from core into zha/
+#   2. Re-applies the minimal BLZ patches (manifest.json + radio_manager.py)
+#   3. Prints a summary of changes
+#
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ZHA_DIR="$SCRIPT_DIR/zha"
+
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 /path/to/ha-core"
+    exit 1
+fi
+
+CORE_DIR="$1"
+CORE_ZHA="$CORE_DIR/homeassistant/components/zha"
+
+if [ ! -d "$CORE_ZHA" ]; then
+    echo "Error: $CORE_ZHA not found"
+    exit 1
+fi
+
+# Get core version info
+CORE_COMMIT=$(cd "$CORE_DIR" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+HA_VERSION=$(cd "$CORE_DIR" && python3 -c "
+import re
+with open('homeassistant/const.py') as f:
+    text = f.read()
+major = re.search(r'MAJOR_VERSION.*?=.*?(\d+)', text).group(1)
+minor = re.search(r'MINOR_VERSION.*?=.*?(\d+)', text).group(1)
+print(f'{major}.{minor}.0')
+" 2>/dev/null || echo "0.0.0")
+
+echo "Updating from HA core commit $CORE_COMMIT (version $HA_VERSION)"
+echo ""
+
+# Step 1: Copy all files from core ZHA
+echo "Step 1: Copying ZHA files from core..."
+find "$ZHA_DIR" -mindepth 1 -not -path '*/.git/*' -not -name '.git' -delete 2>/dev/null || true
+cp -r "$CORE_ZHA"/* "$ZHA_DIR/"
+echo "  Done."
+
+# Step 2: Patch manifest.json (string-based to preserve upstream formatting)
+echo "Step 2: Patching manifest.json..."
+python3 -c "
+import re, sys
+with open(sys.argv[1]) as f: content = f.read()
+# 1. Name
+content = content.replace('\"Zigbee Home Automation\"', '\"Zigbee Home Automation BLZ\"', 1)
+# 2. Add zigpy_blz logger (after last logger entry)
+if 'zigpy_blz' not in content:
+    content = content.replace(
+        '\"universal_silabs_flasher\",\n    \"serialx\"',
+        '\"universal_silabs_flasher\",\n    \"serialx\",\n    \"zigpy_blz\"',
+    )
+# 3. Replace requirements line
+content = re.sub(
+    r'\"requirements\": \[.*?\]',
+    '\"requirements\": [\n    \"zha @ git+https://github.com/bouffalolab/zha.git@feat/blz\",\n    \"zigpy-blz @ git+https://github.com/bouffalolab/zigpy-blz.git@main\"\n  ]',
+    content,
+    flags=re.DOTALL,
+)
+# 4. Add version before usb (after requirements closing bracket)
+if '\"version\"' not in content:
+    content = content.replace(
+        '  ],\n  \"usb\"',
+        '  ],\n  \"version\": \"' + sys.argv[2] + '-blz\",\n  \"usb\"',
+    )
+with open(sys.argv[1], 'w') as f: f.write(content)
+" "$ZHA_DIR/manifest.json" "$HA_VERSION"
+echo "  Done."
+
+# Step 3: Patch radio_manager.py - add RadioType.blz to RECOMMENDED_RADIOS
+echo "Step 3: Patching radio_manager.py..."
+python3 -c "
+import re, sys
+with open(sys.argv[1]) as f: content = f.read()
+if 'RadioType.blz' not in content:
+    content = re.sub(
+        r'(RECOMMENDED_RADIOS\s*=\s*\([^)]*RadioType\.deconz),?\s*\)',
+        r'\1,\n    RadioType.blz,\n)',
+        content,
+    )
+with open(sys.argv[1], 'w') as f: f.write(content)
+" "$ZHA_DIR/radio_manager.py"
+echo "  Done."
+
+echo ""
+echo "Update complete! Based on HA core $CORE_COMMIT ($HA_VERSION)."
+echo "Version set to: ${HA_VERSION}-blz"
+echo ""
+echo "Files patched:"
+echo "  - zha/manifest.json  (name, loggers, requirements, version)"
+echo "  - zha/radio_manager.py  (RadioType.blz in RECOMMENDED_RADIOS)"
+echo ""
+echo "Next steps:"
+echo "  1. Verify bouffalolab/zha feat/blz branch is compatible with ZHA $(grep -oP 'zha==\K[^"]+' "$CORE_ZHA/manifest.json" 2>/dev/null || echo '(check version)')"
+echo "  2. git add -A && git commit -m 'Update to HA core $HA_VERSION ($CORE_COMMIT)'"
+echo "  3. git push"

@@ -157,10 +157,10 @@ class Light(LightEntity, ZHAEntity):
         )
 
     @property
-    def color_mode(self) -> ColorMode:
+    def color_mode(self) -> ColorMode | None:
         """Return the color mode."""
         if self.entity_data.entity.color_mode is None:
-            return ColorMode.UNKNOWN
+            return None
         return ZHA_TO_HA_COLOR_MODE[self.entity_data.entity.color_mode]
 
     @property

@@ -3,12 +3,15 @@
 # Update the custom ZHA BLZ component from a local HA core checkout.
 #
 # Usage:
-#   ./update_from_core.sh /path/to/ha-core
+#   ./update_from_core.sh /path/to/ha-core [tag-or-ref]
 #
-# What it does:
-#   1. Copies all ZHA files from core into zha/
-#   2. Re-applies the minimal BLZ patches (manifest.json + radio_manager.py)
-#   3. Prints a summary of changes
+# Examples:
+#   ./update_from_core.sh /path/to/ha-core              # uses latest stable tag
+#   ./update_from_core.sh /path/to/ha-core 2026.2.1     # uses specific tag
+#
+# IMPORTANT: Always use a stable release tag, NOT the dev branch.
+# The dev branch targets a newer Python version and may contain
+# syntax incompatible with the Python version in HA stable Docker.
 #
 set -euo pipefail
 
@@ -16,7 +19,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ZHA_DIR="$SCRIPT_DIR/zha"
 
 if [ $# -lt 1 ]; then
-    echo "Usage: $0 /path/to/ha-core"
+    echo "Usage: $0 /path/to/ha-core [tag-or-ref]"
+    echo ""
+    echo "If tag-or-ref is omitted, the latest stable release tag is used."
     exit 1
 fi
 
@@ -28,7 +33,24 @@ if [ ! -d "$CORE_ZHA" ]; then
     exit 1
 fi
 
-# Get core version info
+# Determine which ref to use
+if [ $# -ge 2 ]; then
+    REF="$2"
+else
+    # Find the latest stable release tag (exclude beta/dev)
+    REF=$(cd "$CORE_DIR" && git tag -l "20[0-9][0-9].[0-9]*.[0-9]" --sort=-v:refname | head -1)
+    if [ -z "$REF" ]; then
+        echo "Error: No stable release tags found. Please specify a tag."
+        exit 1
+    fi
+fi
+
+echo "Using ref: $REF"
+
+# Checkout the target ref
+ORIGINAL_REF=$(cd "$CORE_DIR" && git rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
+(cd "$CORE_DIR" && git checkout "$REF" --quiet 2>&1)
+
 CORE_COMMIT=$(cd "$CORE_DIR" && git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 HA_VERSION=$(cd "$CORE_DIR" && python3 -c "
 import re
@@ -36,10 +58,12 @@ with open('homeassistant/const.py') as f:
     text = f.read()
 major = re.search(r'MAJOR_VERSION.*?=.*?(\d+)', text).group(1)
 minor = re.search(r'MINOR_VERSION.*?=.*?(\d+)', text).group(1)
-print(f'{major}.{minor}.0')
+patch = re.search(r'PATCH_VERSION.*?=.*?\"(\d+)\"', text)
+patch = patch.group(1) if patch else '0'
+print(f'{major}.{minor}.{patch}')
 " 2>/dev/null || echo "0.0.0")
 
-echo "Updating from HA core commit $CORE_COMMIT (version $HA_VERSION)"
+echo "Updating from HA core $REF (commit $CORE_COMMIT, version $HA_VERSION)"
 echo ""
 
 # Step 1: Copy all files from core ZHA
@@ -93,37 +117,18 @@ with open(sys.argv[1], 'w') as f: f.write(content)
 " "$ZHA_DIR/radio_manager.py"
 echo "  Done."
 
-# Step 4: Fix PEP 758 syntax for Python 3.13 compatibility
-# HA core dev targets Python 3.14+ which allows "except A, B:" (PEP 758),
-# but HA stable Docker still uses Python 3.13 which requires parentheses.
-echo "Step 4: Fixing except syntax for Python 3.13 compatibility..."
-python3 -c "
-import re, sys, glob
-count = 0
-for path in glob.glob(sys.argv[1] + '/**/*.py', recursive=True):
-    with open(path) as f: content = f.read()
-    # Match 'except A, B[, C...]:' (without 'as') and add parentheses
-    new_content = re.sub(
-        r'except (\w[\w.]*(?:\s*,\s*\w[\w.]*)+):',
-        lambda m: 'except (' + m.group(1) + '):',
-        content,
-    )
-    if new_content != content:
-        with open(path, 'w') as f: f.write(new_content)
-        count += 1
-print(f'  Fixed {count} file(s).')
-" "$ZHA_DIR"
+# Restore original branch
+(cd "$CORE_DIR" && git checkout "$ORIGINAL_REF" --quiet 2>&1)
 
 echo ""
-echo "Update complete! Based on HA core $CORE_COMMIT ($HA_VERSION)."
+echo "Update complete! Based on HA core $REF ($CORE_COMMIT, version $HA_VERSION)."
 echo "Version set to: ${HA_VERSION}-blz"
 echo ""
 echo "Files patched:"
 echo "  - zha/manifest.json  (name, loggers, requirements, version)"
 echo "  - zha/radio_manager.py  (RadioType.blz in RECOMMENDED_RADIOS)"
-echo "  - *.py  (PEP 758 except syntax fixed for Python 3.13 compat)"
 echo ""
 echo "Next steps:"
 echo "  1. Verify bouffalolab/zha feat/blz branch is compatible with ZHA $(grep -oP 'zha==\K[^"]+' "$CORE_ZHA/manifest.json" 2>/dev/null || echo '(check version)')"
-echo "  2. git add -A && git commit -m 'Update to HA core $HA_VERSION ($CORE_COMMIT)'"
+echo "  2. git add -A && git commit -m 'Update to HA core $REF ($CORE_COMMIT)'"
 echo "  3. git push"

@@ -1,0 +1,95 @@
+name: Check for HA Core ZHA Updates
+
+on:
+  schedule:
+    # Run every Monday at 08:00 UTC
+    - cron: "0 8 * * 1"
+  workflow_dispatch: # Allow manual trigger
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  check-update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Clone HA core (shallow)
+        run: |
+          git clone --filter=blob:none --no-checkout \
+            https://github.com/home-assistant/core.git /tmp/ha-core
+          cd /tmp/ha-core
+          # Fetch only tags matching stable releases
+          git fetch --tags
+          LATEST_TAG=$(git tag -l "20[0-9][0-9].[0-9]*.[0-9]" --sort=-v:refname | head -1)
+          echo "LATEST_TAG=$LATEST_TAG" >> "$GITHUB_ENV"
+          echo "Latest stable tag: $LATEST_TAG"
+
+      - name: Read current version from manifest
+        id: current
+        run: |
+          CURRENT_VERSION=$(python3 -c "
+          import json
+          with open('custom_components/zha/manifest.json') as f:
+              m = json.load(f)
+          v = m.get('version', '')
+          # Strip '-blz' suffix to get the HA version
+          print(v.replace('-blz', ''))
+          ")
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
+          echo "Current version: $CURRENT_VERSION"
+
+      - name: Check if update is needed
+        id: check
+        run: |
+          # Extract HA version from the latest tag (e.g., "2026.2.1" -> "2026.2.1")
+          TAG_VERSION="${LATEST_TAG}"
+          echo "Tag version: $TAG_VERSION, Current version: $CURRENT_VERSION"
+          if [ "$TAG_VERSION" = "$CURRENT_VERSION" ]; then
+            echo "Already up to date."
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Update available: $CURRENT_VERSION -> $TAG_VERSION"
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout HA core at latest tag
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          cd /tmp/ha-core
+          git checkout "$LATEST_TAG" --quiet
+
+      - name: Run update script
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          chmod +x update_from_core.sh
+          ./update_from_core.sh /tmp/ha-core "$LATEST_TAG"
+
+      - name: Create Pull Request
+        if: steps.check.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Update ZHA to HA core ${{ env.LATEST_TAG }}"
+          title: "Update ZHA to HA core ${{ env.LATEST_TAG }}"
+          body: |
+            Automated update from Home Assistant core tag `${{ env.LATEST_TAG }}`.
+
+            **Previous version:** `${{ env.CURRENT_VERSION }}-blz`
+            **New version:** `${{ env.LATEST_TAG }}-blz`
+
+            ### Checklist
+            - [ ] Verify [bouffalolab/zha `feat/blz`](https://github.com/bouffalolab/zha/tree/feat/blz) is compatible with this ZHA version
+            - [ ] Test RadioType.blz import works
+            - [ ] Test on a real HA instance (optional)
+          branch: update/ha-core-${{ env.LATEST_TAG }}
+          delete-branch: true

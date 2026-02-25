@@ -1,0 +1,59 @@
+name: CI Smoke Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          # Install the BLZ-patched zha library and zigpy-blz from git
+          pip install \
+            "zha @ git+https://github.com/bouffalolab/zha.git@feat/blz" \
+            "zigpy-blz @ git+https://github.com/bouffalolab/zigpy-blz.git@main"
+
+      - name: Verify RadioType.blz exists
+        run: |
+          python3 -c "
+          from zha.application.const import RadioType
+          assert hasattr(RadioType, 'blz'), 'RadioType.blz not found!'
+          print(f'RadioType.blz = {RadioType.blz}')
+          print(f'Controller: {RadioType.blz.controller}')
+          print('Smoke test passed.')
+          "
+
+      - name: Verify manifest.json is valid
+        run: |
+          python3 -c "
+          import json
+          with open('custom_components/zha/manifest.json') as f:
+              m = json.load(f)
+          assert m['domain'] == 'zha', f'Unexpected domain: {m[\"domain\"]}'
+          assert 'version' in m, 'Missing version field'
+          assert 'zigpy_blz' in m['loggers'], 'zigpy_blz not in loggers'
+          print(f'manifest.json OK: {m[\"name\"]} v{m[\"version\"]}')
+          "
+
+      - name: Verify radio_manager.py patch
+        run: |
+          python3 -c "
+          with open('custom_components/zha/radio_manager.py') as f:
+              content = f.read()
+          assert 'RadioType.blz' in content, 'RadioType.blz not found in radio_manager.py'
+          print('radio_manager.py patch verified.')
+          "

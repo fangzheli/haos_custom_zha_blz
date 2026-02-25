@@ -13,7 +13,17 @@ This repository contains a **complete override** of Home Assistant’s built-in 
 
 ---
 
-## Quick install
+## Install via HACS (recommended)
+
+1. In Home Assistant, go to **HACS** > **Integrations**.
+2. Click the three-dot menu (top right) > **Custom repositories**.
+3. Add `https://github.com/bouffalolab/haos_custom_zha_blz` with category **Integration**.
+4. Search for **ZHA with BLZ Radio Support** and click **Install**.
+5. Restart Home Assistant.
+
+---
+
+## Manual install (SSH)
 
 ```bash
 # 0. Tunnel in with an SSH add-on
@@ -26,9 +36,9 @@ ssh -p 22 <user>@<HA_IP>
 mkdir -p /config/custom_components
 cd /config
 
-# 3. Clone the repo into a throw-away folder, copy just its “zha” directory
+# 3. Clone the repo into a throw-away folder, copy its custom_components/zha directory
 git clone --depth 1 https://github.com/fangzheli/haos_custom_zha_blz.git _tmp_zha
-mv _tmp_zha/zha custom_components/
+cp -r _tmp_zha/custom_components/zha custom_components/
 rm -rf _tmp_zha            # cleanup
 
 # 4. Restart Home Assistant Core
@@ -52,8 +62,11 @@ All other files are identical to the upstream HA core stable release.
 
 ## Maintainer guide: updating to a new HA core release
 
-When a new Home Assistant stable release comes out, follow these steps to
-update the custom component.
+A **GitHub Actions workflow** runs weekly to check for new HA stable releases.
+If an update is found, it automatically runs `update_from_core.sh` and opens a
+pull request. You can also trigger it manually from the Actions tab.
+
+To update manually, follow these steps:
 
 ### 1. Update the local HA core clone
 
@@ -79,7 +92,7 @@ cd /path/to/haos_custom_zha_blz
 
 The script will:
 1. Checkout the stable tag in the core repo
-2. Copy all ZHA files into `zha/`
+2. Copy all ZHA files into `custom_components/zha/`
 3. Re-apply the BLZ patches (`manifest.json` + `radio_manager.py`)
 4. Restore the original branch in the core repo
 

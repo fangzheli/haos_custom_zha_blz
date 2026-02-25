@@ -16,7 +16,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ZHA_DIR="$SCRIPT_DIR/zha"
+ZHA_DIR="$SCRIPT_DIR/custom_components/zha"
 
 if [ $# -lt 1 ]; then
     echo "Usage: $0 /path/to/ha-core [tag-or-ref]"
@@ -125,8 +125,8 @@ echo "Update complete! Based on HA core $REF ($CORE_COMMIT, version $HA_VERSION)
 echo "Version set to: ${HA_VERSION}-blz"
 echo ""
 echo "Files patched:"
-echo "  - zha/manifest.json  (name, loggers, requirements, version)"
-echo "  - zha/radio_manager.py  (RadioType.blz in RECOMMENDED_RADIOS)"
+echo "  - custom_components/zha/manifest.json  (name, loggers, requirements, version)"
+echo "  - custom_components/zha/radio_manager.py  (RadioType.blz in RECOMMENDED_RADIOS)"
 echo ""
 echo "Next steps:"
 echo "  1. Verify bouffalolab/zha feat/blz branch is compatible with ZHA $(grep -oP 'zha==\K[^"]+' "$CORE_ZHA/manifest.json" 2>/dev/null || echo '(check version)')"

@@ -1,0 +1,42 @@
+name: Release Approved Candidate
+
+on:
+  repository_dispatch:
+    types:
+      - blz-release-approved
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.event.client_payload.line == 'zha-haos'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Validate payload
+        run: |
+          test -n "${{ github.event.client_payload.version }}"
+
+      - name: Confirm manifest version matches approved release
+        run: |
+          MANIFEST_VERSION=$(python3 -c "
+          import json
+          with open('custom_components/zha/manifest.json') as f:
+              print(json.load(f)['version'])
+          ")
+          test "$MANIFEST_VERSION" = "${{ github.event.client_payload.version }}"
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.client_payload.version }}
+          name: ${{ github.event.client_payload.version }}
+          body: |
+            Approved after local BLZ smoke regression.
+
+            Upstream line: `${{ github.event.client_payload.upstream_line }}`
+            Commit: `${{ github.sha }}`

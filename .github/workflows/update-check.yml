@@ -42,8 +42,7 @@ jobs:
           with open('custom_components/zha/manifest.json') as f:
               m = json.load(f)
           v = m.get('version', '')
-          # Strip '-blz' suffix to get the HA version
-          print(v.replace('-blz', ''))
+          print(v.split('-blz', 1)[0])
           ")
           echo "CURRENT_VERSION=$CURRENT_VERSION" >> "$GITHUB_ENV"
           echo "Current version: $CURRENT_VERSION"
@@ -72,24 +71,38 @@ jobs:
         if: steps.check.outputs.needs_update == 'true'
         run: |
           chmod +x update_from_core.sh
+          echo "BLZ_RELEASE_DATE=$(date -u +%Y%m%d)" >> "$GITHUB_ENV"
+          echo "BLZ_RELEASE_REVISION=1" >> "$GITHUB_ENV"
+          export BLZ_RELEASE_DATE
+          export BLZ_RELEASE_REVISION
           ./update_from_core.sh /tmp/ha-core "$LATEST_TAG"
+
+      - name: Read candidate version from manifest
+        if: steps.check.outputs.needs_update == 'true'
+        run: |
+          CANDIDATE_VERSION=$(python3 -c "
+          import json
+          with open('custom_components/zha/manifest.json') as f:
+              print(json.load(f)['version'])
+          ")
+          echo "CANDIDATE_VERSION=$CANDIDATE_VERSION" >> "$GITHUB_ENV"
 
       - name: Create Pull Request
         if: steps.check.outputs.needs_update == 'true'
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Update ZHA to HA core ${{ env.LATEST_TAG }}"
-          title: "Update ZHA to HA core ${{ env.LATEST_TAG }}"
+          commit-message: "Update ZHA to HA core ${{ env.LATEST_TAG }} as ${{ env.CANDIDATE_VERSION }}"
+          title: "Update ZHA to HA core ${{ env.LATEST_TAG }} as ${{ env.CANDIDATE_VERSION }}"
           body: |
             Automated update from Home Assistant core tag `${{ env.LATEST_TAG }}`.
 
-            **Previous version:** `${{ env.CURRENT_VERSION }}-blz`
-            **New version:** `${{ env.LATEST_TAG }}-blz`
+            **Previous version:** `${{ env.CURRENT_VERSION }}`
+            **New version:** `${{ env.CANDIDATE_VERSION }}`
 
             ### Checklist
             - [ ] Verify [bouffalolab/zha `feat/blz`](https://github.com/bouffalolab/zha/tree/feat/blz) is compatible with this ZHA version
             - [ ] Test RadioType.blz import works
-            - [ ] Test on a real HA instance (optional)
+            - [ ] Run local smoke test against the dedicated BLZ lamp before release
           branch: update/ha-core-${{ env.LATEST_TAG }}
           delete-branch: true

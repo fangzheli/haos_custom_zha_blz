@@ -40,14 +40,20 @@ jobs:
       - name: Verify manifest.json is valid
         run: |
           python3 -c "
-          import json
+          import json, re
           with open('custom_components/zha/manifest.json') as f:
               m = json.load(f)
           assert m['domain'] == 'zha', f'Unexpected domain: {m[\"domain\"]}'
           assert 'version' in m, 'Missing version field'
+          assert re.match(r'^\d+\.\d+\.\d+-blz\.\d{8}\.\d+$', m['version']), f'Unexpected version format: {m[\"version\"]}'
           assert 'zigpy_blz' in m['loggers'], 'zigpy_blz not in loggers'
           print(f'manifest.json OK: {m[\"name\"]} v{m[\"version\"]}')
           "
+
+      - name: Validate HACS metadata
+        uses: hacs/action@22.5.0
+        with:
+          category: integration
 
       - name: Verify radio_manager.py patch
         run: |

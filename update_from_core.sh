@@ -17,6 +17,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ZHA_DIR="$SCRIPT_DIR/custom_components/zha"
+BLZ_RELEASE_DATE="${BLZ_RELEASE_DATE:-$(date -u +%Y%m%d)}"
+BLZ_RELEASE_REVISION="${BLZ_RELEASE_REVISION:-1}"
 
 if [ $# -lt 1 ]; then
     echo "Usage: $0 /path/to/ha-core [tag-or-ref]"
@@ -62,6 +64,7 @@ patch = re.search(r'PATCH_VERSION.*?=.*?\"(\d+)\"', text)
 patch = patch.group(1) if patch else '0'
 print(f'{major}.{minor}.{patch}')
 " 2>/dev/null || echo "0.0.0")
+BLZ_VERSION="${HA_VERSION}-blz.${BLZ_RELEASE_DATE}.${BLZ_RELEASE_REVISION}"
 
 echo "Updating from HA core $REF (commit $CORE_COMMIT, version $HA_VERSION)"
 echo ""
@@ -96,10 +99,16 @@ content = re.sub(
 if '\"version\"' not in content:
     content = content.replace(
         '  ],\n  \"usb\"',
-        '  ],\n  \"version\": \"' + sys.argv[2] + '-blz\",\n  \"usb\"',
+        '  ],\n  \"version\": \"' + sys.argv[2] + '\",\n  \"usb\"',
+    )
+else:
+    content = re.sub(
+        r'\"version\":\s*\"[^\"]+\"',
+        '\"version\": \"' + sys.argv[2] + '\"',
+        content,
     )
 with open(sys.argv[1], 'w') as f: f.write(content)
-" "$ZHA_DIR/manifest.json" "$HA_VERSION"
+" "$ZHA_DIR/manifest.json" "$BLZ_VERSION"
 echo "  Done."
 
 # Step 3: Patch radio_manager.py - add RadioType.blz to RECOMMENDED_RADIOS
@@ -122,7 +131,7 @@ echo "  Done."
 
 echo ""
 echo "Update complete! Based on HA core $REF ($CORE_COMMIT, version $HA_VERSION)."
-echo "Version set to: ${HA_VERSION}-blz"
+echo "Version set to: ${BLZ_VERSION}"
 echo ""
 echo "Files patched:"
 echo "  - custom_components/zha/manifest.json  (name, loggers, requirements, version)"

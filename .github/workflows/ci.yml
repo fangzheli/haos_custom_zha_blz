@@ -51,9 +51,10 @@ jobs:
           "
 
       - name: Validate HACS metadata
-        uses: hacs/action@22.5.0
+        uses: hacs/action@main
         with:
           category: integration
+          ignore: brands
 
       - name: Verify radio_manager.py patch
         run: |

@@ -38,7 +38,7 @@
   ],
   "requirements": [
     "zha @ git+https://github.com/bouffalolab/zha.git@feat/blz",
-    "zigpy-blz @ git+https://github.com/bouffalolab/zigpy-blz.git@main"
+    "zigpy-blz>=0.1.0"
   ],
   "version": "2026.3.1-blz.20260318.1",
   "usb": [

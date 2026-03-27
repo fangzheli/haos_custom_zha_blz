@@ -107,8 +107,21 @@ else:
         '\"version\": \"' + sys.argv[2] + '\"',
         content,
     )
+# 5. Add/update homeassistant minimum version (e.g. '2026.3.0' from '2026.3.4')
+ha_minor = '.'.join(sys.argv[3].split('.')[:2]) + '.0'
+if '\"homeassistant\"' not in content:
+    content = content.replace(
+        '\"config_flow\": true',
+        '\"config_flow\": true,\n  \"homeassistant\": \"' + ha_minor + '\"',
+    )
+else:
+    content = re.sub(
+        r'\"homeassistant\":\s*\"[^\"]+\"',
+        '\"homeassistant\": \"' + ha_minor + '\"',
+        content,
+    )
 with open(sys.argv[1], 'w') as f: f.write(content)
-" "$ZHA_DIR/manifest.json" "$BLZ_VERSION"
+" "$ZHA_DIR/manifest.json" "$BLZ_VERSION" "$HA_VERSION"
 echo "  Done."
 
 # Step 3: Patch radio_manager.py - add RadioType.blz to RECOMMENDED_RADIOS

@@ -1,10 +1,7 @@
 name: Check for HA Core ZHA Updates
 
 on:
-  schedule:
-    # Run every Monday at 08:00 UTC
-    - cron: "0 8 * * 1"
-  workflow_dispatch: # Allow manual trigger
+  workflow_dispatch: # Manual trigger only; weekly updates handled by local automation/weekly_update.sh
 
 permissions:
   contents: write

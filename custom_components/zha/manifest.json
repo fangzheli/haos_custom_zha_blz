@@ -4,7 +4,7 @@
   "after_dependencies": ["hassio", "onboarding", "usb"],
   "codeowners": ["@dmulcahey", "@adminiuga", "@puddly", "@TheJulianJES"],
   "config_flow": true,
-  "homeassistant": "2026.3.0",
+  "homeassistant": "2026.4.0",
   "dependencies": ["file_upload", "homeassistant_hardware"],
   "documentation": "https://www.home-assistant.io/integrations/zha",
   "integration_type": "hub",
@@ -29,7 +29,7 @@
     "zha @ git+https://github.com/bouffalolab/zha.git@feat/blz",
     "zigpy-blz>=0.1.0"
   ],
-  "version": "2026.3.4-blz.20260328.1",
+  "version": "2026.4.0-blz.20260402.1",
   "usb": [
     {
       "description": "*2652*",

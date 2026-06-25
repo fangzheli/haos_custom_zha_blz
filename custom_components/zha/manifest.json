@@ -29,7 +29,7 @@
     "zha @ git+https://github.com/bouffalolab/zha.git@feat/blz",
     "zigpy-blz>=0.1.0"
   ],
-  "version": "2026.6.3-blz.20260617.1",
+  "version": "2026.6.4-blz.20260625.1",
   "usb": [
     {
       "description": "*2652*",

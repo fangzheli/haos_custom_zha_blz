@@ -1,11 +1,11 @@
 {
   "domain": "zha",
   "name": "Zigbee Home Automation BLZ",
-  "after_dependencies": ["hassio", "onboarding", "usb"],
+  "after_dependencies": ["hassio", "onboarding"],
   "codeowners": ["@dmulcahey", "@adminiuga", "@puddly", "@TheJulianJES"],
   "config_flow": true,
-  "homeassistant": "2026.7.0",
-  "dependencies": ["file_upload", "homeassistant_hardware"],
+  "homeassistant": "2026.8.0",
+  "dependencies": ["file_upload", "homeassistant_hardware", "usb"],
   "documentation": "https://www.home-assistant.io/integrations/zha",
   "integration_type": "hub",
   "iot_class": "local_polling",
@@ -29,7 +29,7 @@
     "zha @ git+https://github.com/bouffalolab/zha.git@feat/blz",
     "zigpy-blz>=0.1.0"
   ],
-  "version": "2026.7.1-blz.20260707.1",
+  "version": "2026.8.2-blz.20260819.1",
   "usb": [
     {
       "description": "*2652*",
